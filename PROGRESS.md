@@ -25,5 +25,4 @@ metrics work.
 
 Same scene at Low/24 FPS and High/30 FPS:
 
-![Low quality, 24 FPS](screenshots/Low24.png)
-![High quality, 30 FPS](screenshots/High30.png)
+<img src="screenshots/Low24.png" alt="Low quality, 24 FPS" width="240"> <img src="screenshots/High30.png" alt="High quality, 30 FPS" width="240">
