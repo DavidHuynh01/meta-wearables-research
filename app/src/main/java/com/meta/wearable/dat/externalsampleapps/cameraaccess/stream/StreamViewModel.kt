@@ -37,12 +37,12 @@ import com.meta.wearable.dat.camera.types.StreamConfiguration
 import com.meta.wearable.dat.camera.types.StreamError
 import com.meta.wearable.dat.camera.types.StreamState
 import com.meta.wearable.dat.camera.types.VideoFrame
-import com.meta.wearable.dat.camera.types.VideoQuality
 import com.meta.wearable.dat.core.Wearables
 import com.meta.wearable.dat.core.selectors.DeviceSelector
 import com.meta.wearable.dat.core.session.DeviceSession
 import com.meta.wearable.dat.core.session.DeviceSessionState
 import com.meta.wearable.dat.core.types.DeviceSessionError
+import com.meta.wearable.dat.externalsampleapps.cameraaccess.metrics.SessionLogger
 import com.meta.wearable.dat.externalsampleapps.cameraaccess.wearables.WearablesViewModel
 import java.io.ByteArrayInputStream
 import java.io.File
@@ -52,10 +52,8 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withTimeoutOrNull
 
 @SuppressLint("AutoCloseableUse")
 class StreamViewModel(
@@ -88,7 +86,13 @@ class StreamViewModel(
 
   private var lastFrameSize: Pair<Int, Int>? = null
 
+  private val sessionLogger = SessionLogger(application)
+
   fun startStream() {
+    sessionLogger.start(
+        wearablesViewModel.uiState.value.selectedQuality.toString(),
+        wearablesViewModel.uiState.value.selectedFrameRate,
+    )
     videoJob?.cancel()
     stateJob?.cancel()
     errorJob?.cancel()
@@ -169,15 +173,14 @@ class StreamViewModel(
     errorJob?.cancel()
     stream?.stop()
     stream = null
-    Log.d(
-        TAG,
-        "Adding stream: quality=${_uiState.value.selectedQuality} " +
-            "frameRate=${_uiState.value.selectedFrameRate}")
+    val quality = wearablesViewModel.uiState.value.selectedQuality
+    val frameRate = wearablesViewModel.uiState.value.selectedFrameRate
+    Log.d(TAG, "Adding stream: quality=$quality frameRate=$frameRate")
     session
         ?.addStream(
             StreamConfiguration(
-                videoQuality = _uiState.value.selectedQuality,
-                frameRate = _uiState.value.selectedFrameRate,
+                videoQuality = quality,
+                frameRate = frameRate,
             ))
         ?.onSuccess { addedStream ->
           stream = addedStream
@@ -190,6 +193,7 @@ class StreamViewModel(
             stream?.state?.collect { streamState ->
               val prevStreamState = _uiState.value.streamState
               Log.d(TAG, "Stream state changed: $prevStreamState -> $streamState")
+              sessionLogger.logEvent("stream_state", streamState.toString())
               _uiState.update { it.copy(streamState = streamState) }
 
               val wasActive = prevStreamState !in SESSION_TERMINAL_STATES
@@ -204,6 +208,7 @@ class StreamViewModel(
           errorJob = viewModelScope.launch {
             stream?.errorStream?.collect { error ->
               Log.d(TAG, "Stream error received: $error (description: ${error.description})")
+              sessionLogger.logEvent("error", error.toString())
               if (error == StreamError.STREAM_ERROR) {
                 Log.d(TAG, "Non-critical error, stream continues")
                 return@collect
@@ -221,6 +226,7 @@ class StreamViewModel(
   }
 
   fun stopStream() {
+    sessionLogger.stop()
     videoJob?.cancel()
     videoJob = null
     stateJob?.cancel()
@@ -233,44 +239,11 @@ class StreamViewModel(
     sessionStateJob = null
     presentationQueue?.stop()
     presentationQueue = null
-    _uiState.update {
-      INITIAL_STATE.copy(
-          selectedQuality = it.selectedQuality,
-          selectedFrameRate = it.selectedFrameRate,
-      )
-    }
+    _uiState.update { INITIAL_STATE }
     stream?.stop()
     stream = null
     session?.stop()
     session = null
-  }
-
-  fun setQuality(quality: VideoQuality) {
-    _uiState.update { it.copy(selectedQuality = quality) }
-    reconfigureStream()
-  }
-
-  fun setFrameRate(frameRate: Int) {
-    _uiState.update { it.copy(selectedFrameRate = frameRate) }
-    reconfigureStream()
-  }
-
-  private fun reconfigureStream() {
-    val active =
-        uiState.value.streamState in
-            setOf(StreamState.STARTING, StreamState.STARTED, StreamState.STREAMING)
-    if (!active || session == null) return
-    viewModelScope.launch {
-      val current = stream
-      videoJob?.cancel()
-      stateJob?.cancel()
-      errorJob?.cancel()
-      current?.stop()
-      withTimeoutOrNull(2000) {
-        current?.state?.first { it == StreamState.STOPPED || it == StreamState.CLOSED }
-      }
-      addStreamWithCurrentConfig()
-    }
   }
 
   private fun handleSessionError(error: DeviceSessionError) {
@@ -358,10 +331,12 @@ class StreamViewModel(
   }
 
   private fun handleVideoFrame(videoFrame: VideoFrame) {
+    sessionLogger.logFrame(videoFrame.width, videoFrame.height)
     val size = videoFrame.width to videoFrame.height
     if (size != lastFrameSize) {
       lastFrameSize = size
       Log.d(TAG, "Frame resolution: ${videoFrame.width}x${videoFrame.height}")
+      sessionLogger.logEvent("resolution", "${videoFrame.width}x${videoFrame.height}")
     }
     // VideoFrame contains raw I420 video data in a ByteBuffer
     // Use optimized YuvToBitmapConverter for direct I420 to ARGB conversion

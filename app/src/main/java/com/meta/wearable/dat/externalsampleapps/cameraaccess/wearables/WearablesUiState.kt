@@ -12,6 +12,7 @@
 
 package com.meta.wearable.dat.externalsampleapps.cameraaccess.wearables
 
+import com.meta.wearable.dat.camera.types.VideoQuality
 import com.meta.wearable.dat.core.types.DeviceIdentifier
 import com.meta.wearable.dat.core.types.RegistrationState
 import kotlinx.collections.immutable.ImmutableList
@@ -28,6 +29,8 @@ data class WearablesUiState(
     val isDatAppUpdateRequired: Boolean = false,
     val hasActiveDevice: Boolean = false,
     val canRegister: Boolean = false,
+    val selectedQuality: VideoQuality = VideoQuality.MEDIUM,
+    val selectedFrameRate: Int = 24,
 ) {
   val isRegistered: Boolean =
       registrationState == RegistrationState.REGISTERED ||

@@ -26,3 +26,21 @@ metrics work.
 Same scene at Low/24 FPS and High/30 FPS:
 
 <img src="screenshots/Low24.png" alt="Low quality, 24 FPS" width="240"> <img src="screenshots/High30.png" alt="High quality, 30 FPS" width="240">
+
+## July 15, 2026
+The mid-stream quality change was laggy, so I moved the Quality and FPS controls
+off the stream screen onto the setup screen as dropdowns, so you pick before
+streaming starts. That removed the reconfigure code and the lag.
+
+The app kept crashing a few seconds into streaming. Turned out to be Android
+Studio's device mirroring running its own VP8 encoder that fought the stream's
+encoder and crashed the shared codec. Disabled mirroring and it's stable.
+
+Built the metrics layer. A SessionLogger writes two CSVs per session:
+frames_<time>.csv (one row per frame with timestamp, size, and gap, for FPS and
+jitter) and events_<time>.csv (session start/end, state changes, resolution
+changes, errors, plus duration and average FPS at the end).
+
+Quality and FPS as dropdowns on the setup screen:
+
+<img src="screenshots/Med24.png" alt="Setup screen with quality and FPS dropdowns" width="240">

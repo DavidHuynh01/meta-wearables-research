@@ -20,6 +20,7 @@ import android.app.Activity
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.meta.wearable.dat.camera.types.VideoQuality
 import com.meta.wearable.dat.core.Wearables
 import com.meta.wearable.dat.core.selectors.AutoDeviceSelector
 import com.meta.wearable.dat.core.selectors.DeviceSelector
@@ -161,6 +162,14 @@ class WearablesViewModel(application: Application) : AndroidViewModel(applicatio
 
   fun navigateToDeviceSelection() {
     _uiState.update { it.copy(isStreaming = false) }
+  }
+
+  fun setQuality(quality: VideoQuality) {
+    _uiState.update { it.copy(selectedQuality = quality) }
+  }
+
+  fun setFrameRate(frameRate: Int) {
+    _uiState.update { it.copy(selectedFrameRate = frameRate) }
   }
 
   fun showDebugMenu() {

@@ -14,7 +14,6 @@ package com.meta.wearable.dat.externalsampleapps.cameraaccess.stream
 
 import android.graphics.Bitmap
 import com.meta.wearable.dat.camera.types.StreamState
-import com.meta.wearable.dat.camera.types.VideoQuality
 
 data class StreamUiState(
     val streamState: StreamState = StreamState.STOPPED,
@@ -23,6 +22,4 @@ data class StreamUiState(
     val capturedPhoto: Bitmap? = null,
     val isShareDialogVisible: Boolean = false,
     val isCapturing: Boolean = false,
-    val selectedQuality: VideoQuality = VideoQuality.MEDIUM,
-    val selectedFrameRate: Int = 24,
 )

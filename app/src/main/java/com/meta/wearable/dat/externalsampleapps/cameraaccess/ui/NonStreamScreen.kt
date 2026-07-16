@@ -25,12 +25,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.LinkOff
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.DropdownMenu
@@ -40,6 +42,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -54,13 +57,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.meta.wearable.dat.camera.types.VideoQuality
 import com.meta.wearable.dat.core.types.Permission
 import com.meta.wearable.dat.core.types.PermissionStatus
 import com.meta.wearable.dat.core.types.RegistrationState
@@ -132,7 +135,7 @@ fun NonStreamScreen(
             painter = painterResource(id = R.drawable.camera_access_icon),
             contentDescription = stringResource(R.string.camera_access_icon_description),
             tint = Color.White,
-            modifier = Modifier.size(80.dp * LocalDensity.current.density),
+            modifier = Modifier.size(96.dp),
         )
         Text(
             text = stringResource(R.string.non_stream_screen_title),
@@ -146,6 +149,34 @@ fun NonStreamScreen(
             textAlign = TextAlign.Center,
             color = Color.White,
         )
+
+        if (uiState.hasActiveDevice) {
+          Spacer(modifier = Modifier.height(8.dp))
+          SelectorDropdown(
+              label = "Quality",
+              options =
+                  listOf(
+                      "Low" to VideoQuality.LOW,
+                      "Med" to VideoQuality.MEDIUM,
+                      "High" to VideoQuality.HIGH,
+                  ),
+              selected = uiState.selectedQuality,
+              onSelect = { viewModel.setQuality(it) },
+          )
+          SelectorDropdown(
+              label = "FPS",
+              options =
+                  listOf(
+                      "2" to 2,
+                      "7" to 7,
+                      "15" to 15,
+                      "24" to 24,
+                      "30" to 30,
+                  ),
+              selected = uiState.selectedFrameRate,
+              onSelect = { viewModel.setFrameRate(it) },
+          )
+        }
       }
 
       Column(
@@ -326,5 +357,48 @@ private fun TipItem(iconResId: Int, text: String, modifier: Modifier = Modifier)
     )
     Spacer(modifier = Modifier.width(10.dp))
     Text(text = text)
+  }
+}
+
+@Composable
+private fun <T> SelectorDropdown(
+    label: String,
+    options: List<Pair<String, T>>,
+    selected: T,
+    onSelect: (T) -> Unit,
+) {
+  var expanded by remember { mutableStateOf(false) }
+  val currentLabel = options.firstOrNull { it.second == selected }?.first ?: ""
+  Row(
+      modifier = Modifier.fillMaxWidth(),
+      horizontalArrangement = Arrangement.spacedBy(8.dp),
+      verticalAlignment = Alignment.CenterVertically,
+  ) {
+    Text(text = label, color = Color.White, modifier = Modifier.width(64.dp))
+    Box(modifier = Modifier.weight(1f)) {
+      OutlinedButton(
+          onClick = { expanded = true },
+          modifier = Modifier.fillMaxWidth(),
+          contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+      ) {
+        Text(text = currentLabel, color = Color.White, modifier = Modifier.weight(1f))
+        Icon(
+            imageVector = Icons.Default.ArrowDropDown,
+            contentDescription = null,
+            tint = Color.White,
+        )
+      }
+      DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+        options.forEach { (text, value) ->
+          DropdownMenuItem(
+              text = { Text(text) },
+              onClick = {
+                onSelect(value)
+                expanded = false
+              },
+          )
+        }
+      }
+    }
   }
 }
