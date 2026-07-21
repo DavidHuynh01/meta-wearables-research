@@ -69,8 +69,6 @@ Every session writes two CSV files to the phone's public
 | width, height | the frame's resolution |
 | gap_ms | milliseconds since the previous frame (inter-frame jitter) |
 
-Effective FPS = number of frame rows divided by session duration. Inter-frame
-jitter = the variation in `gap_ms`.
 
 ### events_&lt;time&gt;.csv (one row per event)
 
