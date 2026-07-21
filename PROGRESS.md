@@ -3,7 +3,7 @@
 ## July 13, 2026
 Got the CameraAccess sample building and running on my S21 with the mock device.
 The stream crashed as soon as it started. Dug into it with adb logcat and found a
-mul-overflow in Android's software VP8 encoder (vp8_pick_frame_size). The back
+mul-overflow in Android's software VP8 encoder. The back
 camera resolution is too big and overflows it. Switched the mock camera source to
 the front camera and it streams fine. So it's a codec limit.
 
@@ -44,3 +44,21 @@ changes, errors, plus duration and average FPS at the end).
 Quality and FPS as dropdowns on the setup screen:
 
 <img src="screenshots/Med24.png" alt="Setup screen with quality and FPS dropdowns" width="240">
+
+## July 16, 2026
+Opened a mock session CSV and checked the numbers. Effective FPS came out below
+the requested rate, and the gap_ms column captures the jitter. On the mock the
+resolution stays fixed at 480x640 no matter which quality I pick, since the mock
+does not rescale its camera.
+
+The events file (session summary) and the frames file (per-frame timing):
+
+<img src="screenshots/Events.png" alt="Events CSV opened in Excel" width="440">
+
+<img src="screenshots/Frames.png" alt="Frames CSV opened in Excel" width="320">
+
+## July 17, 2026
+Wrote the README: requirements, GitHub token setup, Developer Mode, build and run,
+mock steps, the CSV columns, how to export the logs, and known limitations (the
+back camera / High quality encoder crash, and turning off Android Studio Device
+Mirroring to stop a mid-stream crash).

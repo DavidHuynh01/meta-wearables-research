@@ -1,0 +1,7 @@
+timestamp_ms,type,detail
+0,session_start,quality=LOW;fps=24
+18,stream_state,STOPPED
+41,stream_state,STARTING
+1657,stream_state,STREAMING
+1768,resolution,480x640
+32037,session_end,duration_ms=32037;frames=808;avg_fps=25.2

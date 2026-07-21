@@ -14,8 +14,8 @@ import java.util.Locale
 
 // Writes per-session research metrics to two CSV files in the phone's public
 // Downloads/MetaGlassesResearch folder, so they show up in the Files app and over USB:
-//   frames_<time>.csv  one row per video frame, for effective FPS and jitter
-//   events_<time>.csv  one row per event: session start/end, state changes, errors
+// frames_<time>.csv  one row per video frame, for effective FPS and jitter
+// events_<time>.csv  one row per event: session start/end, state changes, errors
 class SessionLogger(private val context: Context) {
 
   companion object {
