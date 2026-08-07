@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Source display</title>
+<style>
+  /* The controlled scene the glasses film (black-box guide, Part 4).
+     Shows: millisecond clock, frame counter, trial ID, phase label.
+     Keys: T = set trial id, B/S/R = BASELINE/STRESS/RECOVERY, F = fullscreen. */
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; background: #111; color: #fff; overflow: hidden;
+    font-family: Consolas, "Courier New", monospace; }
+  /* detailed static texture so the encoder has real content to work on */
+  body {
+    background-image:
+      repeating-linear-gradient(45deg, #1a1a1a 0 12px, #202020 12px 24px),
+      repeating-linear-gradient(-45deg, transparent 0 6px, #161616 6px 12px);
+  }
+  main { height: 100%; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 4vh; }
+  #clock { font-size: 13vw; font-weight: bold; letter-spacing: .02em;
+    background: #000; padding: 1vh 3vw; border: 4px solid #444; }
+  .row { display: flex; gap: 6vw; align-items: center; }
+  .box { text-align: center; background: #000; padding: 1vh 2vw; border: 3px solid #444; }
+  .label { font-size: 2vw; color: #999; }
+  .value { font-size: 5vw; font-weight: bold; }
+  #phase.BASELINE { color: #4caf50; }
+  #phase.STRESS   { color: #f44336; }
+  #phase.RECOVERY { color: #ff9800; }
+  #hint { position: fixed; bottom: 1vh; width: 100%; text-align: center;
+    color: #666; font-size: 1.4vw; }
+</style>
+</head>
+<body>
+<main>
+  <div id="clock">00:00:00.000</div>
+  <div class="row">
+    <div class="box"><div class="label">FRAME</div><div class="value" id="counter">0</div></div>
+    <div class="box"><div class="label">TRIAL</div><div class="value" id="trial">unset</div></div>
+    <div class="box"><div class="label">PHASE</div><div class="value BASELINE" id="phase">BASELINE</div></div>
+  </div>
+</main>
+<div id="hint">T set trial id &nbsp;|&nbsp; B / S / R phase &nbsp;|&nbsp; F fullscreen &nbsp;|&nbsp; clock is this machine's system time (sync it with Chrony/NTP)</div>
+<script>
+  const clock = document.getElementById("clock");
+  const counter = document.getElementById("counter");
+  const phase = document.getElementById("phase");
+  const trial = document.getElementById("trial");
+  let frames = 0;
+
+  function pad(n, w) { return String(n).padStart(w, "0"); }
+
+  let lastRaf = performance.now();
+
+  function drawClock() {
+    const d = new Date();
+    clock.textContent = pad(d.getHours(),2) + ":" + pad(d.getMinutes(),2) + ":" +
+      pad(d.getSeconds(),2) + "." + pad(d.getMilliseconds(),3);
+  }
+
+  function tick() {
+    lastRaf = performance.now();
+    drawClock();
+    counter.textContent = ++frames;
+    requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+
+  // requestAnimationFrame silently pauses when the page is hidden or occluded,
+  // which would freeze the clock while it still looks alive and corrupt every
+  // latency reading taken from it. Backup interval keeps the clock moving and
+  // paints an unmissable warning if frame updates have stalled.
+  setInterval(function () {
+    drawClock();
+    const stalled = performance.now() - lastRaf > 500;
+    clock.style.borderColor = stalled ? "#f44336" : "#444";
+    clock.style.color = stalled ? "#f44336" : "#fff";
+    document.title = stalled ? "STALLED - Source display" : "Source display";
+  }, 100);
+
+  function setPhase(p) { phase.textContent = p; phase.className = "value " + p; }
+
+  document.addEventListener("keydown", (e) => {
+    const k = e.key.toLowerCase();
+    if (k === "b") setPhase("BASELINE");
+    if (k === "s") setPhase("STRESS");
+    if (k === "r") setPhase("RECOVERY");
+    if (k === "f") document.documentElement.requestFullscreen();
+    if (k === "t") {
+      const id = prompt("Trial ID:");
+      if (id) trial.textContent = id;
+    }
+  });
+</script>
+</body>
+</html>

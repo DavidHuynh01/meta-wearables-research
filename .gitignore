@@ -9,3 +9,11 @@
 .externalNativeBuild
 .cxx
 local.properties
+
+data/
+*.pcap
+*.pcapng
+*.mkv
+*.mp4
+*_viewer_frames.csv
+*_viewer_windows.csv
