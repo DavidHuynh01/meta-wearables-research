@@ -11,6 +11,8 @@
 local.properties
 
 data/
+__pycache__/
+*.pyc
 *.pcap
 *.pcapng
 *.mkv
