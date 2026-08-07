@@ -4,7 +4,7 @@ An Android app built on Meta's Wearables Device Access Toolkit (DAT SDK),
 starting from the CameraAccess sample. It connects to Ray-Ban Meta Gen 2 glasses,
 shows the live camera feed on the phone, lets you pick video quality and frame
 rate, and logs per-session research metrics to CSV. It can also run against the
-SDK's mock device, so it works without physical glasses.
+SDK's mock device.
 
 ## Requirements
 
