@@ -18,6 +18,7 @@ package com.meta.wearable.dat.externalsampleapps.cameraaccess.wearables
 
 import android.app.Activity
 import android.app.Application
+import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.meta.wearable.dat.camera.types.VideoQuality
@@ -36,6 +37,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.util.Locale
 
 class WearablesViewModel(application: Application) : AndroidViewModel(application) {
   private val _uiState = MutableStateFlow(WearablesUiState())
@@ -170,6 +172,47 @@ class WearablesViewModel(application: Application) : AndroidViewModel(applicatio
 
   fun setFrameRate(frameRate: Int) {
     _uiState.update { it.copy(selectedFrameRate = frameRate) }
+  }
+
+  fun setTrialId(id: String) {
+    // commas would break the CSV row this ends up in
+    _uiState.update { it.copy(trialId = id.replace(",", "_")) }
+  }
+
+  fun setPlatform(platform: String) {
+    _uiState.update { it.copy(platform = platform) }
+  }
+
+  // gives this session its trial id. Empty field: auto-generate Gen2_0001 style,
+  // with the counter in SharedPreferences so it survives app restarts and never
+  // repeats. Typed field: use the text and bump its trailing number for next time.
+  fun nextTrialId(): String {
+    val typed = _uiState.value.trialId
+    if (typed.isNotBlank()) {
+      val resolved = if (typed.last().isDigit()) typed else typed + "1"
+      val base = resolved.dropLastWhile { it.isDigit() }
+      val number = resolved.takeLastWhile { it.isDigit() }.toLongOrNull() ?: 1L
+      _uiState.update { it.copy(trialId = base + (number + 1)) }
+      return resolved
+    }
+    val prefs =
+        getApplication<Application>().getSharedPreferences("trial_ids", Context.MODE_PRIVATE)
+    val n = prefs.getInt("counter", 0) + 1
+    prefs.edit().putInt("counter", n).apply()
+    // plain numbers, the device column already says which platform it was
+    return "%04d".format(Locale.US, n)
+  }
+
+  fun setPhonePosition(position: String) {
+    _uiState.update { it.copy(phonePosition = position) }
+  }
+
+  fun setMotionCondition(condition: String) {
+    _uiState.update { it.copy(motionCondition = condition) }
+  }
+
+  fun setNetworkLimit(limit: String) {
+    _uiState.update { it.copy(networkLimit = limit) }
   }
 
   fun showDebugMenu() {

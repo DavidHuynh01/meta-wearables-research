@@ -51,7 +51,8 @@ the phone camera:
 2. Tap the floating bug icon on the right edge.
 3. Enable MockDeviceKit, then Pair Ray-Ban Meta.
 4. On the device card, turn on Power, Donned, and Unfolded.
-5. Set the Camera source to Front camera or Back Camera
+5. Set the Camera source to Front camera (the back camera can crash on some
+   phones, see Known limitations)
 6. Close the sheet.
 7. On the setup screen, pick Quality and FPS, then tap Start streaming.
 

@@ -62,3 +62,75 @@ Wrote the README: requirements, GitHub token setup, Developer Mode, build and ru
 mock steps, the CSV columns, how to export the logs, and known limitations (the
 back camera / High quality encoder crash, and turning off Android Studio Device
 Mirroring to stop a mid-stream crash).
+
+## July 30, 2026
+Went through the lab's updated metrics list and testing guide to work out what
+the logger needs to record next. Split the metrics into what the toolkit can
+reach directly and what would need a phone-side encoder and a media server
+first, since the toolkit only hands the app decoded frames.
+
+Also wrote up my findings on where the video encoder sits on each glasses
+platform. Short version: it is on the glasses in every case. Raw video at the
+stream's resolution is about 130 Mbps and Bluetooth Classic carries about
+2 Mbps, so the frames have to be compressed before they leave the glasses.
+
+## July 31, 2026
+Started the logger update with the trial metadata. The setup screen gained
+Device / Position / Motion / Network limit dropdowns next to Quality and FPS,
+and every session now appends one row to a shared trials.csv with the run's
+conditions, an auto-generated trial ID (0001, 0002, counter survives app
+restarts), and an epoch_start_ms wall-clock anchor. The session's frames and
+events files stay separate; session_stamp in the trial row is the join key.
+
+Two clocks on purpose: frame and event timestamps stay on the monotonic clock
+so gaps cannot be corrupted by clock adjustments, and the epoch anchor pins the
+session to wall time so these logs can be lined up with packet captures and
+viewer recordings taken during the same run.
+
+The Device and Network limit dropdowns are metadata, not controls: the dropdown
+records which platform and throttle condition the trial ran under so the CSVs
+are self-describing. Mock sessions are labeled mock_loopback instead of
+pretending to be Bluetooth. Also made the setup screen scrollable so the new
+controls do not hide behind the start button.
+
+Added tools/merge_sessions.py: reads every session's CSVs and builds two master
+tables, trials_all.csv (one row per session) and windows_all.csv (one row per
+second across all sessions, with the trial conditions stamped onto every row).
+
+Builds clean. Next: verify on the mock, then startup/retry/recovery tracking.
+
+## August 3, 2026
+Added the recovery tracking. The state collector now writes five new event
+types into events.csv: startup (time to first STREAMING plus how many attempts
+it took), retry (a repeated STARTING with the gap since the previous try),
+failure (the stream fell out of STREAMING on its own), recovery (how long it
+took STREAMING to come back), and abort (the session ended abnormally, either
+a terminal state or a critical SDK error).
+
+The part I like: a user pressing Stop can never show up as a failure, and it
+needs no flag to work. stopStream() cancels the state collector before it
+touches the stream, so by the time teardown causes state changes nothing is
+listening. Every transition the tracker sees is the stream's own behavior.
+
+Durations come from the same monotonic session clock as everything else, so
+recovery times cannot be corrupted by wall clock adjustments. Tested on the
+mock by toggling the mock device's power off mid-stream, which produces the
+failure and abort events, while normal sessions stay clean.
+
+## August 4, 2026
+Added the display-side logging. The presentation queue's onFrameReady callback
+now writes display_<time>.csv, one row per frame that actually reached the
+screen. The display clock differs from the arrival clock by the presentation
+buffer, so this is the local viewer's view of the stream: comparing the two
+files for the same frame (joined on the pts column) shows what the buffer
+really did, and display gaps over 500 ms are the freeze definition.
+
+Also logged the sender-side pts per frame in frames.csv and phone battery at
+session start and end, and upgraded the merge tool: windows_all.csv now carries
+viewer fps, gaps, and freeze counts per second next to the input columns, and
+trials_all.csv folds the recovery events into per-session columns (startup
+time, attempts, retries, failures, recoveries, abort flag, battery drain).
+
+The full set per session is now trials.csv (one shared row), frames (arrival),
+display (screen), events (the story). One merge command turns any folder of
+sessions into the two master tables.

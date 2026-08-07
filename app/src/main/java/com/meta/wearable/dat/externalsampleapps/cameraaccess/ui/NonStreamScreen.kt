@@ -16,6 +16,8 @@ package com.meta.wearable.dat.externalsampleapps.cameraaccess.ui
 import android.widget.Toast
 import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -130,6 +132,10 @@ fun NonStreamScreen(
       Column(
           horizontalAlignment = Alignment.CenterHorizontally,
           verticalArrangement = Arrangement.spacedBy(8.dp),
+          // scrollable with clearance at the bottom so the trial dropdowns
+          // never hide behind the floating Start streaming button
+          modifier =
+              Modifier.verticalScroll(rememberScrollState()).padding(bottom = 96.dp),
       ) {
         Icon(
             painter = painterResource(id = R.drawable.camera_access_icon),
@@ -152,6 +158,7 @@ fun NonStreamScreen(
 
         if (uiState.hasActiveDevice) {
           Spacer(modifier = Modifier.height(8.dp))
+          // config is chosen before the stream starts, the sdk owns quality changes while it is live
           SelectorDropdown(
               label = "Quality",
               options =
@@ -175,6 +182,54 @@ fun NonStreamScreen(
                   ),
               selected = uiState.selectedFrameRate,
               onSelect = { viewModel.setFrameRate(it) },
+          )
+          // trial metadata, written once per session into trial_<time>.csv
+          SelectorDropdown(
+              label = "Device",
+              options =
+                  listOf(
+                      "Mock" to "mock",
+                      "Gen 1" to "meta_gen1",
+                      "Gen 2" to "meta_gen2",
+                  ),
+              selected = uiState.platform,
+              onSelect = { viewModel.setPlatform(it) },
+          )
+          SelectorDropdown(
+              label = "Position",
+              options =
+                  listOf(
+                      "Near" to "near",
+                      "Front pocket" to "front_pocket",
+                      "Back pocket" to "back_pocket",
+                      "Far" to "far",
+                  ),
+              selected = uiState.phonePosition,
+              onSelect = { viewModel.setPhonePosition(it) },
+          )
+          SelectorDropdown(
+              label = "Motion",
+              options =
+                  listOf(
+                      "Still" to "stationary",
+                      "Walking" to "walking",
+                  ),
+              selected = uiState.motionCondition,
+              onSelect = { viewModel.setMotionCondition(it) },
+          )
+          SelectorDropdown(
+              label = "Limit",
+              options =
+                  listOf(
+                      "None" to "none",
+                      "1.10B" to "1.10B",
+                      "1.00B" to "1.00B",
+                      "0.75B" to "0.75B",
+                      "0.50B" to "0.50B",
+                      "0.25B" to "0.25B",
+                  ),
+              selected = uiState.networkLimit,
+              onSelect = { viewModel.setNetworkLimit(it) },
           )
         }
       }

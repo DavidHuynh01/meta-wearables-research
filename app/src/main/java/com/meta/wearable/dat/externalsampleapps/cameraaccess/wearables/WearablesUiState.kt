@@ -29,8 +29,16 @@ data class WearablesUiState(
     val isDatAppUpdateRequired: Boolean = false,
     val hasActiveDevice: Boolean = false,
     val canRegister: Boolean = false,
+    // stream config picked on the setup screen, read when the stream starts
     val selectedQuality: VideoQuality = VideoQuality.MEDIUM,
     val selectedFrameRate: Int = 24,
+    // trial metadata for the metrics CSVs, so every run records the conditions it ran under
+    // trialId blank means auto-generate from platform + persisted counter (Gen2_0001, ...)
+    val trialId: String = "",
+    val platform: String = "mock",
+    val phonePosition: String = "near",
+    val motionCondition: String = "stationary",
+    val networkLimit: String = "none",
 ) {
   val isRegistered: Boolean =
       registrationState == RegistrationState.REGISTERED ||

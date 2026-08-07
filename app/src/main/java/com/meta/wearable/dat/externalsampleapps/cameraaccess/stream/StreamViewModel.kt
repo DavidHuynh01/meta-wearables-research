@@ -88,11 +88,29 @@ class StreamViewModel(
 
   private val sessionLogger = SessionLogger(application)
 
+  // recovery tracking for the metrics CSVs, all times on the logger's session clock
+  private var startupAttempts = 0
+  private var lastAttemptMs = 0L
+  private var reachedStreaming = false
+  private var failureAtMs: Long? = null
+
   fun startStream() {
+    // record the requested config so the CSV can show requested vs delivered
+    val trialId = wearablesViewModel.nextTrialId()
+    val setup = wearablesViewModel.uiState.value
     sessionLogger.start(
-        wearablesViewModel.uiState.value.selectedQuality.toString(),
-        wearablesViewModel.uiState.value.selectedFrameRate,
+        setup.selectedQuality.toString(),
+        setup.selectedFrameRate,
+        trialId,
+        setup.platform,
+        setup.phonePosition,
+        setup.motionCondition,
+        setup.networkLimit,
     )
+    startupAttempts = 0
+    lastAttemptMs = 0L
+    reachedStreaming = false
+    failureAtMs = null
     videoJob?.cancel()
     stateJob?.cancel()
     errorJob?.cancel()
@@ -106,11 +124,14 @@ class StreamViewModel(
     // Uses IntArray pooling for efficiency - cheaper than Bitmap.copy()
     val queue =
         PresentationQueue(
-            bufferDelayMs = 100L,
+            bufferDelayMs = 100L, // trades a little latency for smooth playback
             maxQueueSize = 15,
             onFrameReady = { frame ->
               // This is called from the presentation thread at regular intervals
               // when a frame's presentation time has arrived
+              // display clock differs from arrival clock by the buffer, so this is
+              // the viewer-side log: what actually reached the screen, and when
+              sessionLogger.logDisplayFrame(frame.presentationTimeUs)
               viewModelScope.launch(kotlinx.coroutines.Dispatchers.Main) {
                 _uiState.update {
                   it.copy(videoFrame = frame.bitmap, videoFrameCount = it.videoFrameCount + 1)
@@ -173,6 +194,7 @@ class StreamViewModel(
     errorJob?.cancel()
     stream?.stop()
     stream = null
+    // config only applies at addStream, so read the latest selection here
     val quality = wearablesViewModel.uiState.value.selectedQuality
     val frameRate = wearablesViewModel.uiState.value.selectedFrameRate
     Log.d(TAG, "Adding stream: quality=$quality frameRate=$frameRate")
@@ -184,22 +206,27 @@ class StreamViewModel(
             ))
         ?.onSuccess { addedStream ->
           stream = addedStream
+          // the sdk delivers frames, state, and errors as separate flows, each gets its own collector
           videoJob = viewModelScope.launch {
             Log.d(TAG, "Collecting video frames from stream")
             stream?.videoStream?.collect { handleVideoFrame(it) }
             Log.d(TAG, "Video stream collection ended")
           }
           stateJob = viewModelScope.launch {
+            // StateFlow replays the current state on subscribe, so the first emission is an echo, not a transition
             stream?.state?.collect { streamState ->
               val prevStreamState = _uiState.value.streamState
               Log.d(TAG, "Stream state changed: $prevStreamState -> $streamState")
               sessionLogger.logEvent("stream_state", streamState.toString())
+              trackRecovery(prevStreamState, streamState)
               _uiState.update { it.copy(streamState = streamState) }
 
               val wasActive = prevStreamState !in SESSION_TERMINAL_STATES
               val isTerminated = streamState in SESSION_TERMINAL_STATES
               if (wasActive && isTerminated) {
                 Log.d(TAG, "Terminal state reached, navigating back")
+                // the stream ended on its own, a user stop never reaches this collector
+                sessionLogger.logEvent("abort", "terminal_state=$streamState")
                 stopStream()
                 wearablesViewModel.navigateToDeviceSelection()
               }
@@ -213,6 +240,7 @@ class StreamViewModel(
                 Log.d(TAG, "Non-critical error, stream continues")
                 return@collect
               }
+              sessionLogger.logEvent("abort", "error=$error")
               stopStream()
               wearablesViewModel.navigateToDeviceSelection()
               wearablesViewModel.setRecentError(error.getLocalizedDescription(getApplication()))
@@ -225,7 +253,40 @@ class StreamViewModel(
         }
   }
 
+  // watches the stream's own state changes for her recovery metrics. User stops never
+  // arrive here: stopStream() cancels this collector before touching the stream, so
+  // every transition seen below is the stream's own behavior
+  private fun trackRecovery(prev: StreamState, current: StreamState) {
+    val now = sessionLogger.elapsedMs()
+    when {
+      current == StreamState.STARTING -> {
+        startupAttempts++
+        if (startupAttempts > 1 && lastAttemptMs > 0) {
+          sessionLogger.logEvent(
+              "retry", "attempt=$startupAttempts;since_prev_ms=${now - lastAttemptMs}")
+        }
+        lastAttemptMs = now
+      }
+      current == StreamState.STREAMING -> {
+        if (!reachedStreaming) {
+          reachedStreaming = true
+          sessionLogger.logEvent("startup", "startup_ms=$now;attempts=$startupAttempts")
+        }
+        failureAtMs?.let {
+          sessionLogger.logEvent("recovery", "recovery_ms=${now - it}")
+          failureAtMs = null
+        }
+      }
+      prev == StreamState.STREAMING && current != StreamState.STREAMING -> {
+        // fell out of streaming on its own; if STREAMING returns, recovery_ms gets logged
+        failureAtMs = now
+        sessionLogger.logEvent("failure", "from=$prev;to=$current")
+      }
+    }
+  }
+
   fun stopStream() {
+    // close the csv files before tearing the stream down so session_end always gets written
     sessionLogger.stop()
     videoJob?.cancel()
     videoJob = null
@@ -331,7 +392,8 @@ class StreamViewModel(
   }
 
   private fun handleVideoFrame(videoFrame: VideoFrame) {
-    sessionLogger.logFrame(videoFrame.width, videoFrame.height)
+    sessionLogger.logFrame(videoFrame.width, videoFrame.height, videoFrame.presentationTimeUs)
+    // a size change mid stream is the SDK adapting quality
     val size = videoFrame.width to videoFrame.height
     if (size != lastFrameSize) {
       lastFrameSize = size
@@ -339,7 +401,6 @@ class StreamViewModel(
       sessionLogger.logEvent("resolution", "${videoFrame.width}x${videoFrame.height}")
     }
     // VideoFrame contains raw I420 video data in a ByteBuffer
-    // Use optimized YuvToBitmapConverter for direct I420 to ARGB conversion
     val bitmap =
         YuvToBitmapConverter.convert(
             videoFrame.buffer,
