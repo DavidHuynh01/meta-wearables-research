@@ -215,6 +215,14 @@ class WearablesViewModel(application: Application) : AndroidViewModel(applicatio
     _uiState.update { it.copy(networkLimit = limit) }
   }
 
+  fun setViewerId(id: String) {
+    _uiState.update { it.copy(viewerId = id) }
+  }
+
+  fun setTrialPhase(phase: String) {
+    _uiState.update { it.copy(trialPhase = phase) }
+  }
+
   fun showDebugMenu() {
     _uiState.update { it.copy(isDebugMenuVisible = true) }
   }

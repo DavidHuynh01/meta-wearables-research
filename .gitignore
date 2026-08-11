@@ -13,9 +13,17 @@ local.properties
 data/
 __pycache__/
 *.pyc
+.venv/
+venv/
 *.pcap
 *.pcapng
 *.mkv
 *.mp4
+*.mov
+*.webm
 *_viewer_frames.csv
 *_viewer_windows.csv
+*_sharpness.csv
+*.apk
+*.log
+recordings/

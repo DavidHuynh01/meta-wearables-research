@@ -39,6 +39,11 @@ data class WearablesUiState(
     val phonePosition: String = "near",
     val motionCondition: String = "stationary",
     val networkLimit: String = "none",
+    // which independent viewer produced these rows, for two-viewer attribution
+    val viewerId: String = "A",
+    // BASELINE / STRESS / RECOVERY, changed during a run so app sessions line up
+    // with the phases the Gen 1 controller marks
+    val trialPhase: String = "BASELINE",
 ) {
   val isRegistered: Boolean =
       registrationState == RegistrationState.REGISTERED ||

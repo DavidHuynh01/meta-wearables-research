@@ -1,7 +1,7 @@
 """Fold every session's CSVs in a folder into single master tables.
 
 Usage:
-    python tools/merge_sessions.py data/
+    python tools/app/merge_sessions.py data/app/
 
 Reads every trial_/frames_/events_ CSV (grouped by the timestamp in the
 filename) and writes:

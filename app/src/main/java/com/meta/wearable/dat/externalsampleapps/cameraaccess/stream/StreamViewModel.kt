@@ -42,6 +42,8 @@ import com.meta.wearable.dat.core.selectors.DeviceSelector
 import com.meta.wearable.dat.core.session.DeviceSession
 import com.meta.wearable.dat.core.session.DeviceSessionState
 import com.meta.wearable.dat.core.types.DeviceSessionError
+import com.meta.wearable.dat.externalsampleapps.cameraaccess.metrics.FrameEncoder
+import com.meta.wearable.dat.externalsampleapps.cameraaccess.metrics.RtmpPublisher
 import com.meta.wearable.dat.externalsampleapps.cameraaccess.metrics.SessionLogger
 import com.meta.wearable.dat.externalsampleapps.cameraaccess.wearables.WearablesViewModel
 import java.io.ByteArrayInputStream
@@ -65,6 +67,14 @@ class StreamViewModel(
     private const val TAG = "CameraAccess:StreamViewModel"
     private val INITIAL_STATE = StreamUiState()
     private val SESSION_TERMINAL_STATES = setOf(StreamState.CLOSED)
+
+    // The LAN address of the machine running MediaMTX. Blank disables publishing
+    // and the app just measures its own encoder, which needs no network.
+    // Find it with `ipconfig` on that machine; both devices must be on the
+    // same WiFi.
+    private const val RTMP_HOST = ""
+    private const val RTMP_PORT = 1935
+    private const val RTMP_APP = "live"
   }
 
   private val deviceSelector: DeviceSelector = wearablesViewModel.deviceSelector
@@ -88,7 +98,19 @@ class StreamViewModel(
 
   private val sessionLogger = SessionLogger(application)
 
+  // re-encodes the decoded frames so the Encoder stage of the metrics sheet has
+  // any numbers at all; see FrameEncoder for why they describe our encoder and
+  // not the one on the glasses
+  private var frameEncoder: FrameEncoder? = null
+
+  // pushes those frames to MediaMTX, which is where the four Server rows come
+  // from. Set RTMP_HOST to the machine running the server: the phone cannot
+  // reach 127.0.0.1, that address means the phone itself.
+  private var rtmpPublisher: RtmpPublisher? = null
+
   // recovery tracking for the metrics CSVs, all times on the logger's session clock
+  private var linkDisconnects = 0
+
   private var startupAttempts = 0
   private var lastAttemptMs = 0L
   private var reachedStreaming = false
@@ -106,11 +128,38 @@ class StreamViewModel(
         setup.phonePosition,
         setup.motionCondition,
         setup.networkLimit,
+        setup.viewerId,
+        setup.trialPhase,
     )
     startupAttempts = 0
+    linkDisconnects = 0
     lastAttemptMs = 0L
     reachedStreaming = false
     failureAtMs = null
+    frameEncoder?.release()
+    rtmpPublisher?.stop()
+    rtmpPublisher =
+        if (RTMP_HOST.isBlank()) null
+        else
+            RtmpPublisher(
+                    host = RTMP_HOST,
+                    port = RTMP_PORT,
+                    app = RTMP_APP,
+                    // the stream name carries the trial id, so a recording on the
+                    // server side can be matched to the session that produced it
+                    streamName = if (trialId.isBlank()) "trial" else trialId,
+                    onEvent = { type, detail -> sessionLogger.logEvent(type, detail) },
+                )
+                .also { it.start() }
+    frameEncoder =
+        FrameEncoder(
+            frameRate = setup.selectedFrameRate,
+            onEncodedFrame = { size, ptsUs, keyframe, queued ->
+              sessionLogger.logEncodedFrame(size, ptsUs, keyframe, queued)
+            },
+            onEvent = { type, detail -> sessionLogger.logEvent(type, detail) },
+        )
+        .also { it.publisher = rtmpPublisher }
     videoJob?.cancel()
     stateJob?.cancel()
     errorJob?.cancel()
@@ -166,6 +215,16 @@ class StreamViewModel(
       session?.state?.collect { currentState ->
         val prevState = previousDeviceSessionState
         previousDeviceSessionState = currentState
+        sessionLogger.logEvent("link_state", currentState.toString())
+        // leaving STARTED for anything but PAUSED is the glasses-phone link going
+        // away. PAUSED is the wearer's tap gesture, which is deliberate, not a drop.
+        if (prevState == DeviceSessionState.STARTED &&
+            currentState != DeviceSessionState.STARTED &&
+            currentState != DeviceSessionState.PAUSED) {
+          linkDisconnects++
+          sessionLogger.logEvent(
+              "link_disconnect", "to=$currentState;count=$linkDisconnects")
+        }
 
         if (currentState == DeviceSessionState.STARTED) {
           wearablesViewModel.setDatAppUpdateRequired(false)
@@ -285,7 +344,34 @@ class StreamViewModel(
     }
   }
 
+  // phase marks come mid-run, not at setup: a trial moves BASELINE -> STRESS ->
+  // RECOVERY while streaming, and the timestamps are what let these sessions be
+  // cut into the same windows as the Gen 1 controller's log
+  fun setTrialPhase(phase: String) {
+    val prev = wearablesViewModel.uiState.value.trialPhase
+    if (phase == prev) return
+    wearablesViewModel.setTrialPhase(phase)
+    sessionLogger.logEvent("phase", phase)
+    // the sheet names stress_start and stress_end specifically, so emit those too.
+    // The phase event alone carries the same information, but an analysis written
+    // against her spec greps for these names.
+    if (prev == "STRESS") sessionLogger.logEvent("stress_end", "to=$phase")
+    if (phase == "STRESS") sessionLogger.logEvent("stress_start", "from=$prev")
+  }
+
   fun stopStream() {
+    // a session that ends mid-stress still needs the period closed, or the last
+    // stress_start has no matching end
+    if (wearablesViewModel.uiState.value.trialPhase == "STRESS") {
+      sessionLogger.logEvent("stress_end", "to=session_end")
+    }
+    // release the encoder first: its summary event has to reach the log before
+    // the writers close, and the publisher after it so nothing is still being
+    // handed frames from a codec that is going away
+    frameEncoder?.release()
+    frameEncoder = null
+    rtmpPublisher?.stop()
+    rtmpPublisher = null
     // close the csv files before tearing the stream down so session_end always gets written
     sessionLogger.stop()
     videoJob?.cancel()
@@ -400,6 +486,14 @@ class StreamViewModel(
       Log.d(TAG, "Frame resolution: ${videoFrame.width}x${videoFrame.height}")
       sessionLogger.logEvent("resolution", "${videoFrame.width}x${videoFrame.height}")
     }
+    // encode before the bitmap conversion so the encoder's own timing isn't
+    // measured through the converter; encode() only copies and returns
+    frameEncoder?.encode(
+        videoFrame.buffer,
+        videoFrame.width,
+        videoFrame.height,
+        videoFrame.presentationTimeUs,
+    )
     // VideoFrame contains raw I420 video data in a ByteBuffer
     val bitmap =
         YuvToBitmapConverter.convert(

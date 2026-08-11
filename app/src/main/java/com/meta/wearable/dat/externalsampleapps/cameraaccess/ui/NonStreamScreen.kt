@@ -231,6 +231,16 @@ fun NonStreamScreen(
               selected = uiState.networkLimit,
               onSelect = { viewModel.setNetworkLimit(it) },
           )
+          SelectorDropdown(
+              label = "Viewer",
+              options =
+                  listOf(
+                      "A" to "A",
+                      "B" to "B",
+                  ),
+              selected = uiState.viewerId,
+              onSelect = { viewModel.setViewerId(it) },
+          )
         }
       }
 

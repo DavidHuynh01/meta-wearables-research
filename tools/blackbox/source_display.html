@@ -29,6 +29,12 @@
   #phase.RECOVERY { color: #ff9800; }
   #hint { position: fixed; bottom: 1vh; width: 100%; text-align: center;
     color: #666; font-size: 1.4vw; }
+  /* machine-readable time: 30 cells encoding ms-since-midnight in binary, so a
+     recording can be decoded without OCR. Robust to blur and compression
+     because it only needs light vs dark per cell. */
+  #timebar { display: flex; width: 96vw; height: 12vh; margin-top: 2vh;
+    border: 3px solid #444; background: #000; }
+  #timebar div { flex: 1 1 0; }
 </style>
 </head>
 <body>
@@ -39,6 +45,7 @@
     <div class="box"><div class="label">TRIAL</div><div class="value" id="trial">unset</div></div>
     <div class="box"><div class="label">PHASE</div><div class="value BASELINE" id="phase">BASELINE</div></div>
   </div>
+  <div id="timebar"></div>
 </main>
 <div id="hint">T set trial id &nbsp;|&nbsp; B / S / R phase &nbsp;|&nbsp; F fullscreen &nbsp;|&nbsp; clock is this machine's system time (sync it with Chrony/NTP)</div>
 <script>
@@ -52,10 +59,45 @@
 
   let lastRaf = performance.now();
 
+  // 17 cells: [0]=white sync, [1]=black sync, [2..15]=14 bits, [16]=even parity.
+  // The payload is (ms since midnight) mod 60000, in 5 ms steps - a one minute
+  // window at 5 ms resolution, which is plenty since latency is always under a
+  // minute. Fewer, fatter cells is the whole point: the bar has to survive being
+  // filmed off a screen, compressed by the streaming service, and re-recorded.
+  const BITS = 14, CELLS = BITS + 3;
+  const timebar = document.getElementById("timebar");
+  const cells = [];
+  for (let i = 0; i < CELLS; i++) {
+    const c = document.createElement("div");
+    timebar.appendChild(c);
+    cells.push(c);
+  }
+
+  // XOR mask: without it a small payload is mostly leading zeros, which draws as
+  // one long black run with almost no edges for a decoder to lock onto. Flipping
+  // alternate bits guarantees the bar stays visually busy whatever the time is.
+  const MASK = 0b10101010101010;
+
+  function drawTimebar(msSinceMidnight) {
+    const value = Math.floor((msSinceMidnight % 60000) / 5) ^ MASK;
+    cells[0].style.background = "#fff";
+    cells[1].style.background = "#000";
+    let ones = 0;
+    for (let i = 0; i < BITS; i++) {
+      const bit = (value >> (BITS - 1 - i)) & 1;
+      ones += bit;
+      cells[2 + i].style.background = bit ? "#fff" : "#000";
+    }
+    cells[CELLS - 1].style.background = (ones % 2) ? "#fff" : "#000";
+  }
+
   function drawClock() {
     const d = new Date();
     clock.textContent = pad(d.getHours(),2) + ":" + pad(d.getMinutes(),2) + ":" +
       pad(d.getSeconds(),2) + "." + pad(d.getMilliseconds(),3);
+    const ms = ((d.getHours() * 60 + d.getMinutes()) * 60 + d.getSeconds()) * 1000
+      + d.getMilliseconds();
+    drawTimebar(ms);
   }
 
   function tick() {

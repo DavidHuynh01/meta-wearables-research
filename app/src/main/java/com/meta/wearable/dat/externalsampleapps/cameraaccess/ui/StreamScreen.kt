@@ -24,7 +24,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -56,6 +60,7 @@ fun StreamScreen(
         ),
 ) {
   val streamUiState by streamViewModel.uiState.collectAsStateWithLifecycle()
+  val wearablesUiState by wearablesViewModel.uiState.collectAsStateWithLifecycle()
 
   LaunchedEffect(Unit) { streamViewModel.startStream() }
 
@@ -79,6 +84,25 @@ fun StreamScreen(
     }
 
     Box(modifier = Modifier.fillMaxSize().padding(all = 24.dp)) {
+      // phase marks, tapped during the run. Each tap writes a timestamped phase
+      // event, which is what lets an app session be cut into the same windows the
+      // Gen 1 controller marks on the router side.
+      Row(
+          modifier = Modifier.align(Alignment.TopCenter).statusBarsPadding().fillMaxWidth(),
+          horizontalArrangement = Arrangement.spacedBy(8.dp),
+          verticalAlignment = Alignment.CenterVertically,
+      ) {
+        listOf("BASELINE", "STRESS", "RECOVERY").forEach { phase ->
+          val onClick = { streamViewModel.setTrialPhase(phase) }
+          val label = @Composable { Text(phase.take(4)) }
+          if (wearablesUiState.trialPhase == phase) {
+            Button(onClick = onClick, modifier = Modifier.weight(1f)) { label() }
+          } else {
+            OutlinedButton(onClick = onClick, modifier = Modifier.weight(1f)) { label() }
+          }
+        }
+      }
+
       Row(
           modifier =
               Modifier.align(Alignment.BottomCenter)

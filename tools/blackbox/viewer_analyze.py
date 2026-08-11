@@ -2,8 +2,8 @@
 the metrics sheet (black-box guide, Part 17.2).
 
 Usage:
-    python tools/viewer_analyze.py rec.mp4 --crop 0.52,0.10,0.48,0.55
-    python tools/viewer_analyze.py rec.mp4 --crop 0.52,0.10,0.48,0.55 --start-epoch 1786047238
+    python tools/blackbox/viewer_analyze.py rec.mp4 --crop 0.52,0.10,0.48,0.55
+    python tools/blackbox/viewer_analyze.py rec.mp4 --crop 0.52,0.10,0.48,0.55 --start-epoch 1786047238
 
 --crop x,y,w,h are fractions of the frame (0-1) selecting just the video player
 inside the recording, so the desktop around it never counts as motion. Run once

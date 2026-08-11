@@ -2,8 +2,8 @@
 metrics sheet (black-box guide, Part 17.1).
 
 Usage:
-    python tools/pcap_windows.py capture.pcapng 192.168.137.42
-    python tools/pcap_windows.py capture.pcapng 192.168.137.42 -o data/router
+    python tools/blackbox/pcap_windows.py capture.pcapng 192.168.137.42
+    python tools/blackbox/pcap_windows.py capture.pcapng 192.168.137.42 -o data/router
 
 Inputs: a pcap/pcapng file and the phone's IP address on the capture network.
 Outputs (next to the capture unless -o gives a prefix):
